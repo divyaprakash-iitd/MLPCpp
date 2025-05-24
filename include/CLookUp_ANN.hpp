@@ -477,7 +477,7 @@ public:
                  "------+"
                  "\n";
     std::cout
-        << "|                 Multi-Layer Perceptron (MLP) info                "
+        << "|                (DP was here!) Multi-Layer Perceptron (MLP) info   "
            "|\n";
     std::cout << "+------------------------------------------------------------"
                  "------+"
