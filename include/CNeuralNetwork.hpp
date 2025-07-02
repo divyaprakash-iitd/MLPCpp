@@ -39,6 +39,10 @@
 #include "CLayer.hpp"
 #include "variable_def.hpp"
 
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#endif
+
 namespace MLPToolbox {
 class CNeuralNetwork {
   /*!
@@ -647,6 +651,8 @@ public:
    * \param[in] inputs - Vector containing non-normalized network inputs.
    */
   void Predict(std::vector<mlpdouble> &inputs) {
+    
+    ZoneScopedN("Predict");
 
     for (auto iLayer = 0u; iLayer < n_hidden_layers + 2; iLayer++) {
       for (auto iNeuron = 0u; iNeuron < total_layers[iLayer]->GetNNeurons();

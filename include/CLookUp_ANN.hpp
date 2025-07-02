@@ -41,6 +41,7 @@
 #include "CReadNeuralNetwork.hpp"
 #include "variable_def.hpp"
 #include <unordered_map>
+#include <tracy/Tracy.hpp>
 
 namespace MLPToolbox {
 
@@ -446,6 +447,7 @@ public:
     std::size_t i_ANN,
     std::vector<std::string> variable_names,
     bool input) const {
+    ZoneScopedN("FindVariableIndices");
     std::vector<std::pair<size_t, size_t>> variable_indices;
     auto nVar = input ? NeuralNetworks[i_ANN].GetnInputs()
                       : NeuralNetworks[i_ANN].GetnOutputs();

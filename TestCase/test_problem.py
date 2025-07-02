@@ -5,6 +5,7 @@ import os
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 
 import matplotlib.pyplot as plt
+import time
 
 
 def Translate_Tensorflow_MLP(file_out:str, input_names:list[str], output_names:list[str], model:tf.keras.models.Sequential, \
@@ -214,7 +215,13 @@ Y_norm_pred = model.predict(X_norm)
 Y_dim_pred = scaler_y.inverse_transform(Y_norm_pred)
 
 # Run MLPCpp to evaluate MLP
-os.system("./test_MLPCpp")
+start_time = time.time()
+# os.system("./test_MLPCpp")
+os.system("./backup_test_MLPCpp")
+end_time = time.time()
+# Calculate and print elapsed time
+elapsed_time = end_time - start_time
+print(f"Elapsed time: {elapsed_time:.6f} seconds")
 
 # Read predicted data from MLPCpp
 Y_dim_pred_MLPCpp = np.loadtxt("predicted_data.csv",delimiter='\t',skiprows=1)[:, 2]

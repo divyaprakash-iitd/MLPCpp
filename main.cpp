@@ -34,10 +34,12 @@ code.
 /*--- Include the look-up MLP class ---*/
 #include "include/CLookUp_ANN.hpp"
 #include <chrono>
+#include <tracy/Tracy.hpp>
 
 using namespace std;
 
 int main() {
+  ZoneScoped; // Profiles the entire main function
   /* PREPROCESSING START */
 
   /* Step 1: Generate MLP collection */
