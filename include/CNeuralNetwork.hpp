@@ -39,12 +39,24 @@
 #include "CLayer.hpp"
 #include "variable_def.hpp"
 
-#ifdef TRACY_ENABLE
-#include <tracy/Tracy.hpp>
-#endif
+//#ifdef TRACY_ENABLE
+//#include <tracy/Tracy.hpp>
+//#endif
+
+#include <vector>
+#include <string>
+#include <unordered_map>
+
 
 namespace MLPToolbox {
-class CNeuralNetwork {
+
+struct MatchResult {
+    bool is_match = false;
+    std::vector<std::pair<size_t, size_t>> input_indices;
+    std::vector<std::pair<size_t, size_t>> output_indices;
+};
+
+  class CNeuralNetwork {
   /*!
    *\class CNeuralNetwork
    *\brief The CNeuralNetwork class allows for the evaluation of a loaded MLP
@@ -225,6 +237,51 @@ public:
     output_reg_method = reg_method_input;
     return;
   }
+
+  MatchResult GetVariableMapping(const std::vector<std::string>& lookup_inputs, const std::vector<std::string>& lookup_outputs) const {
+  MatchResult result;
+
+  // --- Match Inputs (Strict: all network inputs must be in the lookup list) ---
+  if (GetnInputs() > lookup_inputs.size()) {
+      return result; // Not enough lookup inputs provided to satisfy the network
+  }
+
+  std::unordered_map<std::string, size_t> lookup_input_map;
+  for(size_t i = 0; i < lookup_inputs.size(); ++i) {
+      lookup_input_map[lookup_inputs[i]] = i;
+  }
+
+  for (size_t i = 0; i < GetnInputs(); ++i) {
+      auto it = lookup_input_map.find(GetInputName(i));
+      if (it == lookup_input_map.end()) {
+          result.input_indices.clear(); // Invalidate partial matches
+          return result; // An ANN input is missing from the lookup list.
+      }
+      result.input_indices.emplace_back(it->second, i);
+  }
+
+  // --- Match Outputs (Any: at least one network output must be in the lookup list) ---
+  std::unordered_map<std::string, size_t> lookup_output_map;
+  for(size_t i = 0; i < lookup_outputs.size(); ++i) {
+      lookup_output_map[lookup_outputs[i]] = i;
+  }
+
+  for (size_t i = 0; i < GetnOutputs(); ++i) {
+      auto it = lookup_output_map.find(GetOutputName(i));
+      if (it != lookup_output_map.end()) {
+          result.output_indices.emplace_back(it->second, i);
+      }
+  }
+
+  if (result.output_indices.empty()) {
+      return result; // No matching outputs found.
+  }
+
+  // If we get here, it's a match.
+  result.is_match = true;
+  return result;
+}
+
 
   /*!
    * \brief Display the network architecture in the terminal.
@@ -652,7 +709,7 @@ public:
    */
   void Predict(std::vector<mlpdouble> &inputs) {
     
-    ZoneScopedN("Predict");
+    //ZoneScopedN("Predict");
 
     for (auto iLayer = 0u; iLayer < n_hidden_layers + 2; iLayer++) {
       for (auto iNeuron = 0u; iNeuron < total_layers[iLayer]->GetNNeurons();

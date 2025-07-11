@@ -41,7 +41,7 @@
 #include "CReadNeuralNetwork.hpp"
 #include "variable_def.hpp"
 #include <unordered_map>
-#include <tracy/Tracy.hpp>
+//#include <tracy/Tracy.hpp>
 
 namespace MLPToolbox {
 
@@ -313,47 +313,36 @@ public:
     return MLP_was_evaluated ? 0 : 1;
   }
 
-  /*!
-   * \brief Pair inputs and outputs with look-up operations.
-   * \param[in] ioMap - input-output map to pair variables with.
-   */
-  void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
-    /*
-    In this function, the call inputs and outputs are matched to those within
-    the MLP collection.
-    */
-    bool isInput, isOutput;
+/*!
+  * \brief Pair inputs and outputs with look-up operations.
+  * \param[in] ioMap - input-output map to pair variables with.
+  */
+void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
+  /*
+  In this function, the call inputs and outputs are matched to those within
+  the MLP collection.
+  */
+  auto inputVariables = ioMap.GetInputVars();
+  auto outputVariables = ioMap.GetOutputVars();
 
-    auto inputVariables = ioMap.GetInputVars();
-    auto outputVariables = ioMap.GetOutputVars();
-    // Looping over the loaded MLPs to check wether the MLP inputs match with
-    // the call inputs
-    for (size_t iMLP = 0; iMLP < NeuralNetworks.size(); iMLP++) {
-      // Mapped call inputs to MLP inputs
-      std::vector<std::pair<size_t, size_t>> Input_Indices =
-          FindVariableIndices(iMLP, inputVariables, true);
-      isInput = Input_Indices.size() > 0;
+  // Looping over the loaded MLPs to find matches and map variables.
+  for (size_t iMLP = 0; iMLP < NeuralNetworks.size(); iMLP++) {
+    // This single call now performs the check and gets the index mappings efficiently.
+    auto mapping_result =
+        NeuralNetworks[iMLP].GetVariableMapping(inputVariables, outputVariables);
 
-      if (isInput) {
-        // Only when the MLP inputs match with a portion of the call inputs are
-        // the output variable checks performed
-
-        std::vector<std::pair<size_t, size_t>> Output_Indices =
-            FindVariableIndices(iMLP, outputVariables, false);
-        isOutput = Output_Indices.size() > 0;
-
-        if (isOutput) {
-          // Update input and output mapping if both inputs and outputs match
-          ioMap.PushMLPIndex(iMLP);
-          ioMap.PushInputIndices(Input_Indices);
-          ioMap.PushOutputIndices(Output_Indices);
-        }
-      }
+    if (mapping_result.is_match) {
+      // Update the input-output map with the results.
+      ioMap.PushMLPIndex(iMLP);
+      ioMap.PushInputIndices(mapping_result.input_indices);
+      ioMap.PushOutputIndices(mapping_result.output_indices);
     }
-
-    CheckUseOfInputs(ioMap);
-    CheckUseOfOutputs(ioMap);
   }
+
+  CheckUseOfInputs(ioMap);
+  CheckUseOfOutputs(ioMap);
+}
+
 
   /*!
    * \brief Get number of loaded ANNs
@@ -447,7 +436,7 @@ public:
     std::size_t i_ANN,
     std::vector<std::string> variable_names,
     bool input) const {
-    ZoneScopedN("FindVariableIndices");
+    //ZoneScopedN("FindVariableIndices");
     std::vector<std::pair<size_t, size_t>> variable_indices;
     auto nVar = input ? NeuralNetworks[i_ANN].GetnInputs()
                       : NeuralNetworks[i_ANN].GetnOutputs();
