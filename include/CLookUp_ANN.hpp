@@ -41,7 +41,7 @@
 #include "CReadNeuralNetwork.hpp"
 #include "variable_def.hpp"
 #include <unordered_map>
-//#include <tracy/Tracy.hpp>
+#include "/home/divyaprakash/SU2/Common/include/tracy_structure.hpp"
 
 namespace MLPToolbox {
 
@@ -318,6 +318,7 @@ public:
   * \param[in] ioMap - input-output map to pair variables with.
   */
 void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
+  SU2_ZONE_SCOPED;
   /*
   In this function, the call inputs and outputs are matched to those within
   the MLP collection.
@@ -436,7 +437,6 @@ void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
     std::size_t i_ANN,
     std::vector<std::string> variable_names,
     bool input) const {
-    //ZoneScopedN("FindVariableIndices");
     std::vector<std::pair<size_t, size_t>> variable_indices;
     auto nVar = input ? NeuralNetworks[i_ANN].GetnInputs()
                       : NeuralNetworks[i_ANN].GetnOutputs();
