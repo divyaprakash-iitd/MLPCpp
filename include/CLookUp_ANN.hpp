@@ -326,6 +326,19 @@ void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
   auto inputVariables = ioMap.GetInputVars();
   auto outputVariables = ioMap.GetOutputVars();
 
+  
+    std::cout << "Input Variables:" << std::endl;
+    for (const auto& var : inputVariables) {
+        std::cout << "- " << var << std::endl;
+    }
+
+
+    std::cout << "Output Variables:" << std::endl;
+    for (const auto& var : outputVariables) {
+        std::cout << "- " << var << std::endl;
+    }
+
+
   // Looping over the loaded MLPs to find matches and map variables.
   for (size_t iMLP = 0; iMLP < NeuralNetworks.size(); iMLP++) {
     // This single call now performs the check and gets the index mappings efficiently.
@@ -338,10 +351,11 @@ void PairVariableswithMLPs(MLPToolbox::CIOMap &ioMap) {
       ioMap.PushInputIndices(mapping_result.input_indices);
       ioMap.PushOutputIndices(mapping_result.output_indices);
     }
+
   }
 
   CheckUseOfInputs(ioMap);
-  CheckUseOfOutputs(ioMap);
+  // CheckUseOfOutputs(ioMap);
 }
 
 
