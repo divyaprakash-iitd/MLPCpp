@@ -27,7 +27,7 @@
 * SOFTWARE.
 */
 #pragma once
-
+// #include "../../../Common/include/tracy_structure.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -122,6 +122,25 @@ private:
                                     the network. */
   ENUM_SCALING_FUNCTIONS input_reg_method {ENUM_SCALING_FUNCTIONS::MINMAX},
                          output_reg_method {ENUM_SCALING_FUNCTIONS::MINMAX};
+
+  // --- New flattened vector implementation ---
+  std::vector<mlpdouble> flat_weights;
+  std::vector<int> layer_sizes;
+  std::vector<int> layer_offsets;
+  /**
+   * @brief Calculates the 1D index for the flattened weights vector from 3D indices.
+   * @param iLayer The layer index.
+   * @param iNeuron The neuron index in the current layer.
+   * @param jNeuron The neuron index in the previous layer.
+   * @return The corresponding index in the flat_weights vector.
+   */
+  inline int get_flat_index(int i_layer, int i_dest_neuron, int i_src_neuron) const {
+    // SU2_ZONE_SCOPED;
+      // This logic uses the IN-MEMORY layout: [destination][source]
+      // layer_sizes[i_layer] corresponds to the number of neurons in the source layer (the previous layer).
+      return layer_offsets[i_layer] + i_dest_neuron * layer_sizes[i_layer] + i_src_neuron;
+  }
+
 public:
   ~CNeuralNetwork() {
     delete inputLayer;
@@ -166,6 +185,24 @@ public:
     hiddenLayers.push_back(newLayer);
     n_hidden_layers++;
   }
+
+    /**
+     * @brief (NEW) Sets a weight value in the flattened vector, handling the index swap.
+     * This function mimics the behavior of the original SetWeight for the new data structure.
+     */
+    void SetFlatWeight(unsigned long i_layer, unsigned long i_src_neuron, unsigned long i_dest_neuron, mlpdouble value) {
+        int index = get_flat_index(i_layer, i_dest_neuron, i_src_neuron);
+        flat_weights[index] = value;
+    }
+
+    /**
+     * @brief (NEW) Gets a weight value from the flattened vector using the in-memory layout.
+     */
+    inline mlpdouble GetFlatWeight(int i_layer, int i_dest_neuron, int i_src_neuron) const {
+        // SU2_ZONE_SCOPED;
+        int index = get_flat_index(i_layer, i_dest_neuron, i_src_neuron);
+        return flat_weights[index];
+    }
 
   /*!
    * \brief Set the weight value of a specific synapse.
@@ -373,7 +410,25 @@ public:
       total_layers[iLayer + 1] = hiddenLayers[iLayer];
     }
     total_layers[total_layers.size() - 1] = outputLayer;
+    
+    // --- START NEW IMPLEMENTATION ---
+    layer_sizes.clear();
+    for(const auto& layer : total_layers) {
+        layer_sizes.push_back(layer->GetNNeurons());
+    }
 
+    layer_offsets.clear();
+    int total_weights = 0;
+    layer_offsets.push_back(total_weights);
+
+    for (size_t i = 0; i < GetNLayers() - 1; ++i) {
+        int weights_in_layer = layer_sizes[i+1] * layer_sizes[i];
+        total_weights += weights_in_layer;
+        layer_offsets.push_back(total_weights);
+    }
+    flat_weights.resize(total_weights);
+    // --- END NEW IMPLEMENTATION ---
+    
     weights_mat.resize(n_hidden_layers + 1);
     weights_mat[0].resize(hiddenLayers[0]->GetNNeurons());
     for (auto iNeuron = 0u; iNeuron < hiddenLayers[0]->GetNNeurons(); iNeuron++)
@@ -655,7 +710,8 @@ public:
           ComputeInputLayer(inputs, iNeuron);
         } else {
           /* Compute activation function input value. */
-          mlpdouble X = ComputeX(iLayer, iNeuron);
+          // mlpdouble X = ComputeX(iLayer, iNeuron);
+          mlpdouble X = ComputeX_flat(iLayer, iNeuron);
 
           /* Evaluate activation function. */
           ActivationFunction(iLayer, X);
@@ -669,13 +725,16 @@ public:
             for (auto jInput = 0u; jInput < inputLayer->GetNNeurons();
                  jInput++) {
               mlpdouble psi_j = ComputePsi(iLayer, iNeuron, jInput);
+              // mlpdouble psi_j = ComputePsi_flat(iLayer, iNeuron, jInput);
               mlpdouble dYi_dIj = psi_j * Phi_prime;
               total_layers[iLayer]->SetdYdX(iNeuron, jInput, dYi_dIj);
               if (compute_second_gradient) {
                 for (auto kInput = 0u; kInput < inputLayer->GetNNeurons();
                      kInput++) {
-                  mlpdouble psi_k = ComputePsi(iLayer, iNeuron, kInput);
-                  mlpdouble chi = ComputeChi(iLayer, iNeuron, jInput, kInput);
+                 mlpdouble psi_k = ComputePsi(iLayer, iNeuron, kInput);
+                 mlpdouble chi = ComputeChi(iLayer, iNeuron, jInput, kInput);
+                 // mlpdouble psi_k = ComputePsi_flat(iLayer, iNeuron, kInput);
+                 // mlpdouble chi = ComputeChi_flat(iLayer, iNeuron, jInput, kInput);
                   mlpdouble d2Yi_dIjdIk =
                       Phi_dprime * psi_j * psi_k + Phi_prime * chi;
 
@@ -824,6 +883,18 @@ public:
     return x;
   }
 
+  // New version for verification
+  mlpdouble ComputeX_flat(std::size_t iLayer, std::size_t iNeuron) const {
+      mlpdouble x = total_layers[iLayer]->GetBias(iNeuron);
+      std::size_t nNeurons_previous = total_layers[iLayer - 1]->GetNNeurons();
+      for (std::size_t jNeuron = 0; jNeuron < nNeurons_previous; jNeuron++) {
+          // Access is [layer][destination][source]
+          x += GetFlatWeight(iLayer - 1, iNeuron, jNeuron) *
+               total_layers[iLayer - 1]->GetOutput(jNeuron);
+      }
+      return x;
+  }
+
   /*!
    * \brief Compute the weighted sum of the neuron output derivatives of the
    * previous layer. \param[in] iLayer - Current network layer index. \param[in]
@@ -841,6 +912,21 @@ public:
     }
     return psi;
   }
+
+  /**
+   * @brief (NEW) Compute Psi for gradients using the flattened weights.
+   */
+  mlpdouble ComputePsi_flat(std::size_t iLayer, std::size_t iNeuron,
+                            std::size_t jInput) const {
+      mlpdouble psi = 0;
+      for (auto jNeuron = 0u; jNeuron < total_layers[iLayer - 1]->GetNNeurons();
+           jNeuron++) {
+          psi += GetFlatWeight(iLayer - 1, iNeuron, jNeuron) *
+                 total_layers[iLayer - 1]->GetdYdX(jNeuron, jInput);
+      }
+      return psi;
+  }
+
 
   /*!
    * \brief Compute the weighted sum of the neuron output second derivatives of
@@ -862,6 +948,21 @@ public:
     return chi;
   }
 
+
+  /**
+   * @brief (NEW) Compute Chi for second-order gradients using the flattened weights.
+   */
+  mlpdouble ComputeChi_flat(std::size_t iLayer, std::size_t iNeuron,
+                            std::size_t jInput, std::size_t kInput) const {
+      mlpdouble chi = 0;
+      for (auto jNeuron = 0u; jNeuron < total_layers[iLayer - 1]->GetNNeurons();
+           jNeuron++) {
+          chi += GetFlatWeight(iLayer - 1, iNeuron, jNeuron) *
+                 total_layers[iLayer - 1]->Getd2YdX2(jNeuron, jInput, kInput);
+      }
+      return chi;
+  }
+
   /*!
    * \brief Compute the weighted sum of the weighted output derivatives of the previous layer.
    * \param[in] iLayer - Current network layer index.
@@ -875,6 +976,20 @@ public:
     for (auto jNeuron = 0u; jNeuron < total_layers[iLayer - 1]->GetNNeurons();
          jNeuron++) {
       doutput_dinput += weights_mat[iLayer - 1][iNeuron][jNeuron] *
+                        total_layers[iLayer - 1]->GetdYdX(jNeuron, iInput);
+    }
+    return doutput_dinput;
+  }
+  
+ /**
+  * @brief (NEW) Computed output input
+  */
+ mlpdouble ComputedOutputdInput_flat(std::size_t iLayer, std::size_t iNeuron,
+                                 std::size_t iInput) const {
+    mlpdouble doutput_dinput = 0;
+    for (auto jNeuron = 0u; jNeuron < total_layers[iLayer - 1]->GetNNeurons();
+         jNeuron++) {
+      doutput_dinput += GetFlatWeight(iLayer - 1, iNeuron, jNeuron) *
                         total_layers[iLayer - 1]->GetdYdX(jNeuron, iInput);
     }
     return doutput_dinput;

@@ -105,6 +105,11 @@ private:
              j_neuron++) {
           ANN.SetWeight(i_layer, i_neuron, j_neuron,
                         Reader.GetWeight(i_layer, i_neuron, j_neuron));
+
+          // New call to populate the parallel structure
+          ANN.SetFlatWeight(i_layer, i_neuron, j_neuron,
+                        Reader.GetWeight(i_layer, i_neuron, j_neuron));
+
         }
       }
     }
@@ -477,7 +482,7 @@ public:
                  "------+"
                  "\n";
     std::cout
-        << "|                 Multi-Layer Perceptron (MLP) info                "
+        << "|                (DP was here!) Multi-Layer Perceptron (MLP) info   "
            "|\n";
     std::cout << "+------------------------------------------------------------"
                  "------+"
